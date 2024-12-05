@@ -1,70 +1,84 @@
-import 'dart:ui';
+import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:flutter_background_location_test/get_current_location_service.dart';
-import 'package:geolocator/geolocator.dart';
-import 'package:workmanager/workmanager.dart';
+import 'package:background_fetch/background_fetch.dart';
+
 
 @pragma('vm:entry-point')
-void callbackDispatcher() {
-  Workmanager().executeTask((task, inputData) async {
-    WidgetsFlutterBinding.ensureInitialized();
-
-    print("Native called background task: $task");
-
-    if (task == 'get-location') {
-      try {
-        Position position = await Geolocator.getCurrentPosition(
-          desiredAccuracy: LocationAccuracy.high,
-        );
-        print('User current position in background: $position');
-      } catch (e) {
-        print('Error fetching location in background: $e');
-      }
-    }
-
-    return Future.value(true);
-  });
+void backgroundFetchHeadlessTask(HeadlessTask task) async {
+  String taskId = task.taskId;
+  bool isTimeout = task.timeout;
+  if (isTimeout) {
+    print("[BackgroundFetch] Headless task timed-out: $taskId");
+    BackgroundFetch.finish(taskId);
+    return;
+  }
+  print('[BackgroundFetch] Headless event received.');
+  BackgroundFetch.finish(taskId);
 }
 
 void main() {
-  WidgetsFlutterBinding.ensureInitialized();
-  Workmanager().initialize(callbackDispatcher, isInDebugMode: true);
-  runApp(const MyApp());
+  runApp(new MyApp());
+  BackgroundFetch.registerHeadlessTask(backgroundFetchHeadlessTask);
 }
 
 class MyApp extends StatefulWidget {
-  const MyApp({super.key});
-
   @override
-  State<MyApp> createState() => _MyAppState();
+  _MyAppState createState() => new _MyAppState();
 }
 
 class _MyAppState extends State<MyApp> {
+  bool _enabled = true;
+  int _status = 0;
+  List<DateTime> _events = [];
+
   @override
   void initState() {
-    determinePosition();
+    super.initState();
+    initPlatformState();
   }
+
+  Future<void> initPlatformState() async {
+    int status = await BackgroundFetch.configure(
+        BackgroundFetchConfig(
+            minimumFetchInterval: 15,
+            stopOnTerminate: false,
+            enableHeadless: true,
+            requiresBatteryNotLow: false,
+            requiresCharging: false,
+            requiresStorageNotLow: false,
+            requiresDeviceIdle: false,
+            requiredNetworkType: NetworkType.NONE), (String taskId) async {
+      print("[BackgroundFetch] Event received $taskId");
+      setState(() {
+        _events.insert(0, new DateTime.now());
+      });
+      
+      BackgroundFetch.finish(taskId);
+    }, (String taskId) async {
+  
+      print("[BackgroundFetch] TASK TIMEOUT taskId: $taskId");
+      BackgroundFetch.finish(taskId);
+    });
+    print('[BackgroundFetch] configure success: $status');
+    setState(() {
+      _status = status;
+    });
+
+    if (!mounted) return;
+  }
+
+  
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      debugShowCheckedModeBanner: false,
       home: Scaffold(
         appBar: AppBar(
-          title: const Text('Flutter Workmanger'),
-        ),
-        body: ElevatedButton(
-          onPressed: () async {
-            Workmanager().registerPeriodicTask(
-              "one-time-task",
-              "get-location",
-              frequency: const Duration(minutes: 15),
-            );
-          },
-          child: const Center(
-            child: Text('ADD'),
-          ),
+          title: const Text('Background Service'),
         ),
       ),
+
     );
   }
 }
