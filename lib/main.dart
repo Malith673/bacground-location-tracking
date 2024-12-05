@@ -1,7 +1,8 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:background_fetch/background_fetch.dart';
-
+import 'package:flutter_background_location_test/get_current_location_service.dart';
+import 'package:geolocator/geolocator.dart';
 
 @pragma('vm:entry-point')
 void backgroundFetchHeadlessTask(HeadlessTask task) async {
@@ -34,6 +35,7 @@ class _MyAppState extends State<MyApp> {
   @override
   void initState() {
     super.initState();
+    determinePosition();
     initPlatformState();
   }
 
@@ -49,13 +51,15 @@ class _MyAppState extends State<MyApp> {
             requiresDeviceIdle: false,
             requiredNetworkType: NetworkType.NONE), (String taskId) async {
       print("[BackgroundFetch] Event received $taskId");
-      setState(() {
-        _events.insert(0, new DateTime.now());
-      });
-      
+      try {
+        Position position = await Geolocator.getCurrentPosition();
+        print('User location: ${position.latitude}, ${position.longitude}');
+      } catch (e) {
+        print('Error fetching location: $e');
+      }
+
       BackgroundFetch.finish(taskId);
     }, (String taskId) async {
-  
       print("[BackgroundFetch] TASK TIMEOUT taskId: $taskId");
       BackgroundFetch.finish(taskId);
     });
@@ -67,8 +71,6 @@ class _MyAppState extends State<MyApp> {
     if (!mounted) return;
   }
 
-  
-
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
@@ -78,7 +80,6 @@ class _MyAppState extends State<MyApp> {
           title: const Text('Background Service'),
         ),
       ),
-
     );
   }
 }

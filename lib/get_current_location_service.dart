@@ -25,10 +25,3 @@ Future<Position> determinePosition() async {
   return await Geolocator.getCurrentPosition();
 }
 
-void getUserCurrrentLocation() async {
-  print('callling get cureent loction');
-  var position = await Geolocator.getCurrentPosition();
-  print('after callling get cureent loction');
-
-  print('user current position.......$position');
-}
